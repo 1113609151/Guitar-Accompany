@@ -22,7 +22,7 @@ class GuitarTrainerApp:
         # self.master.attributes('-fullscreen', True)
         
         # 添加一个按钮，用于退出全屏
-        button_exit_fullscreen = tk.Button(self.master, text="Exit Fullscreen", command=self.exit_fullscreen)
+        button_exit_fullscreen = tk.Button(self.master, text="退出全屏", command=self.exit_fullscreen)
         button_exit_fullscreen.pack()
 
         #添加按钮，用于添加歌曲
@@ -104,8 +104,6 @@ class GuitarTrainerApp:
         # 更新图片
         self.image = ImageTk.PhotoImage(img)
         self.image_label.config(image=self.image)
-        self.image_label.update()
-        self.image_label.update_idletasks()
 
     def popup_menu(self, event):     #弹出菜单
         self.menu.post(event.x_root, event.y_root)
@@ -196,7 +194,13 @@ class GuitarTrainerApp:
         
         self.save_tabs()
         messagebox.showinfo("保存成功", "图像已保存.")
-        
+
+    def load_image(self, filename):
+        img = Image.open(filename)
+        photo = ImageTk.PhotoImage(img)
+        self.image_label.config(image=photo)
+        self.image_label.image = photo  
+
     def on_select(self, event):      #判断当前选中的歌曲名
         # 获取选中的歌曲名称
         selected_index = self.song_listbox.curselection()
@@ -207,11 +211,11 @@ class GuitarTrainerApp:
 
         if self.selected_song in self.song_tab:
             self.img_url = self.song_tab[self.selected_song][0]
-            self.resize_image
+            self.load_image(filename=self.img_url)
 
         else:
             self.img_url = './guitar accompany .png'
-            self.resize_image
+            self.load_image(filename=self.img_url)
             
     def save_tabs(self):             #保存乐谱信息
         with open('./config/song_dict.pkl', 'wb') as f:
