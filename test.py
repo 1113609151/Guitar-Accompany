@@ -275,7 +275,6 @@ class GuitarTrainerApp:
         total_pages = len(self.song_tab[self.selected_song])
         self.page_text.set(f"1/{total_pages}")
 
-
     def load_image(self, filename):  #更改显示的图片
         # 获取Label的大小
         label_width = self.image_label.winfo_width()

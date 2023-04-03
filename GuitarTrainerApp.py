@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import datetime
 import tkinter as tk
 from tkinter import messagebox
@@ -76,6 +77,7 @@ class GuitarTrainerApp:
         self.song_listbox_menu.add_command(label="重命名", command=self.edit_song_name)
         self.song_listbox_menu.add_command(label="删除歌曲", command=self.delete_song)
         self.song_listbox_menu.add_command(label="更改位置", command=self.change_pos)
+        self.song_listbox_menu.add_command(label="当前位置", command=self.current_pos)
 
         # 添加现存歌曲
         for song_name in self.song_list:
@@ -149,7 +151,10 @@ class GuitarTrainerApp:
     
     def save_songs(self):            #将所有歌曲名称保存到文件中
         with open("./config/song_list.txt", "w") as f:
-            f.write("\n".join(self.song_list))
+            try:
+                f.write("\n".join(self.song_list))
+            except Exception as e:
+                messagebox.showwarning('输入有误')
 
     def edit_song_name(self):        #重命名操作
         # 获取选中的歌曲名称和索引
@@ -157,7 +162,7 @@ class GuitarTrainerApp:
         old_song_name = self.song_listbox.get(selection_index)
 
         # 显示修改歌曲名称的对话框
-        new_song_name = tk.simpledialog.askstring("重命名歌名", "                输入新的歌曲名:                ",  
+        new_song_name = simpledialog.askstring("重命名歌名", "                输入新的歌曲名:                ",  
                                                   initialvalue=old_song_name, )
 
         # 如果用户输入了新名称
@@ -170,8 +175,27 @@ class GuitarTrainerApp:
                 self.song_listbox.delete(selection_index)
                 self.song_listbox.insert(selection_index, new_song_name)
 
-                # 修改文件名
-                os.rename(f"{old_song_name}.txt", f"{new_song_name}.txt")
+                #将self.song_list按照self.song_listbox的顺序重写
+                self.song_list = self.song_listbox.get(0, tk.END)
+                self.save_songs()
+
+                # 将self.song_tab中key的值改变
+                if old_song_name in self.song_tab:
+                    self.song_tab[new_song_name] = self.song_tab.pop(old_song_name)
+                    tab = self.song_tab[new_song_name]
+                    for i, t in enumerate(tab):
+                        tab[i] = t.replace(old_song_name, new_song_name)
+                    self.song_tab[new_song_name] = tab
+                    self.save_tabs()
+
+                # 将存放歌曲曲谱的文件夹名称改变
+                if old_song_name in self.song_tab:
+                    old_path = os.path.join('./pic', old_song_name)
+                    new_path = os.path.join('./pic', new_song_name)
+                    os.rename(old_path, new_path)             
+                
+                #提示修改成功
+                messagebox.showinfo("修改成功", "修改成功！")
 
     def delete_song(self):           #删除歌曲操作(已优化)
         # 获取选中的歌曲名
@@ -245,8 +269,11 @@ class GuitarTrainerApp:
         
         # 显示保存成功消息和缩略图
         messagebox.showinfo("保存成功", "图像已保存.")
-        self.img_url = target_file
-        self.load_image(target_file)
+        self.img_url = self.song_tab[selected_song][0]
+        self.load_image(self.img_url)
+
+        total_pages = len(self.song_tab[self.selected_song])
+        self.page_text.set(f"1/{total_pages}")
 
     def load_image(self, filename):  #更改显示的图片
         # 获取Label的大小
@@ -338,6 +365,9 @@ class GuitarTrainerApp:
         #提示删除成功
         messagebox.showinfo("删除成功", "图像已删除.")
 
+        total_pages = len(self.song_tab[self.selected_song])
+        self.page_text.set(f"1/{total_pages}")
+
     def next_tab(self):              #显示下一张图片
         if self.selected_song not in self.song_tab:
             messagebox.showerror("错误", "当前无曲谱")
@@ -362,12 +392,30 @@ class GuitarTrainerApp:
     
     def change_pos(self):            #改变歌曲在listbox中的位置
         #弹出对话框，获取改变的位置
-        pos = int(simpledialog.askstring("改变位置", "请输入位置(从1开始):"))
-        if pos < 1 or pos > len(self.song_list):
-            messagebox.showerror("错误", "位置超出范围")
+        pos1 = simpledialog.askstring("改变位置", "请输入位置(从1开始):")
+        if pos1 is not None and pos1.isdigit():
+            pos1 = int(pos1)
+        else:
+            messagebox.showerror("错误", "数据错误")
             return
         
+        if pos1 < 1 or pos1 > len(self.song_list):
+            messagebox.showerror("错误", "位置超出范围")
+            return
 
-root = tk.Tk()
-app = GuitarTrainerApp(root)
-root.mainloop()
+        pos2 = self.song_listbox.curselection()
+        song = self.song_listbox.get(pos2)
+        self.song_listbox.delete(pos2)
+        self.song_listbox.insert(pos1 - 1, song)
+
+        #将self.song_list按照self.song_listbox的顺序重写
+        self.song_list = self.song_listbox.get(0, tk.END)
+        self.save_songs()
+
+        # 提示改变成功
+        messagebox.showinfo("改变成功", "位置已改变.")
+
+    def current_pos(self):           #显示当前歌曲在listbox中的位置
+        pos = self.song_listbox.curselection()[0] + 1
+        #弹窗，告知用户当前位置
+        messagebox.showinfo("当前位置", f"当前位置为{pos}")
