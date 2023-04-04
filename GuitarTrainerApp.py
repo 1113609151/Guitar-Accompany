@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import datetime
+import time
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import filedialog
@@ -14,11 +15,16 @@ class GuitarTrainerApp:
         self.master = master
         self.master.title("Guitar Trainer")  #设置窗口标题
         self.master.geometry("800x600")      #设置窗口尺寸
+
         self.song_list = self.load_songs()   #读取歌曲清单
         self.selected_song = ""              #目前选中的歌曲
         self.song_tab = {}                   #每首歌的曲谱文件地址
         self.load_tabs()                     #读取每首歌的曲谱文件地址
+        self.song_time = {}                  #每首歌的训练时间[单次训练时间，总训练时间]
+        self.load_time()                     #读取每首歌的总练习时间
+
         self.img_url = "./pic/default.png"      #当前显示的img图片地址
+        self.timer_id = 0                    #计时器id
 
         # 添加全屏显示和退出全屏的功能
         # self.master.attributes('-fullscreen', True)
@@ -51,6 +57,16 @@ class GuitarTrainerApp:
         self.page_text = tk.StringVar()
         self.page_label = tk.Label(self.master, textvariable=self.page_text)
         self.page_label.place(relx=1.0, rely=1.0, anchor="se", x=-720, y=-10)
+
+        #添加一个文本框，显示当前训练时间
+        self.time_text_1 = tk.StringVar()
+        self.time_label_1 = tk.Label(self.master, textvariable=self.time_text_1)
+        self.time_label_1.place(relx=1.0, rely=1.0, anchor="se", x=-600, y=-10)
+
+        #添加一个文本框，显示总共训练时间
+        self.time_text_2 = tk.StringVar()
+        self.time_label_2 = tk.Label(self.master, textvariable=self.time_text_2)
+        self.time_label_2.place(relx=1.0, rely=1.0, anchor="se", x=-480, y=-10)
 
         # 创建一个包含两个Frame的Frame
         self.frame = tk.Frame(self.master)
@@ -106,19 +122,17 @@ class GuitarTrainerApp:
     def exit_fullscreen(self):       #退出全屏
         self.master.attributes('-fullscreen', False)
 
-    def resize_image(self, event):   #改变图像大小
+    def resize_image(self, event):   #改变图像大小(已优化)
         img_url = self.img_url
+        
         # 获取Label的大小
         label_width = self.image_label.winfo_width()
         label_height = self.image_label.winfo_height()
 
+        # 加载图片并计算缩放比例
         img = Image.open(img_url)
-
-        # 计算缩放比例
         img_width, img_height = img.size
-        width_ratio = label_width / img_width
-        height_ratio = label_height / img_height
-        ratio = min(width_ratio, height_ratio)
+        ratio = min(label_width / img_width, label_height / img_height)
 
         # 缩放图片
         new_width = int(img_width * ratio)
@@ -132,71 +146,103 @@ class GuitarTrainerApp:
     def popup_menu(self, event):     #弹出菜单
         self.menu.post(event.x_root, event.y_root)
 
-    def add_new_song(self):          #添加新歌曲
+    def add_new_song(self):          #添加新歌曲(已优化)
         new_song_name = simpledialog.askstring("添加新歌曲", "                输入新歌曲的名称：                ")
         if new_song_name:
-            if new_song_name not in self.song_list:
+            # 去除字符串两端的空格
+            new_song_name = new_song_name.strip()
+            if not new_song_name:  # 如果去除空格后是空字符串，给出提示并重新弹出对话框
+                messagebox.showwarning("歌曲名称不能为空", "请输入新歌曲的名称。")
+                self.add_song()  # 重新弹出对话框
+            elif new_song_name in self.song_list:  # 如果歌曲名已经存在，给出提示并重新弹出对话框
+                messagebox.showwarning("歌曲重复", "这个歌曲已经存在了。请换一个歌曲名称。")
+                self.add_song()  # 重新弹出对话框
+            else:  # 如果歌曲名不存在，则添加新歌曲并保存
                 self.song_list.append(new_song_name)
                 self.song_listbox.insert(tk.END, new_song_name)
                 self.save_songs()
-            else:
-                tk.messagebox.showwarning("歌曲重复", "这个歌曲已经存在了.")
 
-    def load_songs(self):            #从文件中加载所有歌曲名称
+    def load_songs(self):            #加载歌曲列表(已优化)
         song_list = []
-        if os.path.exists('./config/song_list.txt'):
+        try:
             with open('./config/song_list.txt', "r") as f:
                 song_list = f.read().splitlines()
+        except FileNotFoundError:
+            pass # File 不存在
+        except Exception as e:
+            messagebox.showwarning('读取歌曲列表失败', f"错误信息: {str(e)}")
         return song_list
-    
-    def save_songs(self):            #将所有歌曲名称保存到文件中
-        with open("./config/song_list.txt", "w") as f:
-            try:
-                f.write("\n".join(self.song_list))
-            except Exception as e:
-                messagebox.showwarning('输入有误')
 
-    def edit_song_name(self):        #重命名操作
+    def save_songs(self):            #保存歌曲名称到文件中（已优化）
+        file_path = "./config/song_list.txt"
+        try:
+            with open(file_path, "w") as f:
+                f.write("\n".join(self.song_list))
+        except Exception as e:
+            error_msg = f"An error occurred while writing to file {file_path}:\n{e}"
+            print(error_msg)
+            messagebox.showwarning('保存失败', error_msg)
+
+    def edit_song_name(self):        #重命名操作(已优化)
         # 获取选中的歌曲名称和索引
-        selection_index = self.song_listbox.curselection()[0]
+        selected_index = self.song_listbox.curselection()
+        if not selected_index:
+            return
+        selection_index = selected_index[0]
         old_song_name = self.song_listbox.get(selection_index)
 
         # 显示修改歌曲名称的对话框
-        new_song_name = simpledialog.askstring("重命名歌名", "                输入新的歌曲名:                ",  
-                                                  initialvalue=old_song_name, )
+        new_song_name = simpledialog.askstring(
+            "重命名歌名", 
+            "                输入新的歌曲名:                ",  
+        initialvalue=old_song_name
+        )
 
         # 如果用户输入了新名称
         if new_song_name:
-            # 判断新名称是否与已有的名称重复
-            if new_song_name in self.song_listbox.get(0, tk.END):
-                tk.messagebox.showwarning("警告", "这首歌曲已经存在了.")
-            else:
-                # 修改列表框中的歌曲名称
-                self.song_listbox.delete(selection_index)
-                self.song_listbox.insert(selection_index, new_song_name)
+                    # 判断新名称是否与已有的名称重复
+            if new_song_name == old_song_name:
+                messagebox.showwarning("警告", "新名称和原名称相同.")
+                return
+            if new_song_name in self.song_list:
+                messagebox.showwarning("警告", "这首歌曲已经存在了.")
+                return
+            
+            # 修改列表框中的歌曲名称
+            self.song_listbox.delete(selection_index)
+            self.song_listbox.insert(selection_index, new_song_name)
 
-                #将self.song_list按照self.song_listbox的顺序重写
-                self.song_list = self.song_listbox.get(0, tk.END)
-                self.save_songs()
+            # 更新self.song_list
+            self.song_list = list(self.song_listbox.get(0, tk.END))
+            self.save_songs()
 
-                # 将self.song_tab中key的值改变
-                if old_song_name in self.song_tab:
-                    self.song_tab[new_song_name] = self.song_tab.pop(old_song_name)
-                    tab = self.song_tab[new_song_name]
-                    for i, t in enumerate(tab):
-                        tab[i] = t.replace(old_song_name, new_song_name)
-                    self.song_tab[new_song_name] = tab
-                    self.save_tabs()
+            # 将self.song_tab中key的值改变
+            if old_song_name in self.song_tab:
+                self.song_tab[new_song_name] = self.song_tab.pop(old_song_name)
+                tab = self.song_tab[new_song_name]
+                for i, t in enumerate(tab):
+                    tab[i] = t.replace(old_song_name, new_song_name)
+                self.song_tab[new_song_name] = tab
+                self.save_tabs()
 
-                # 将存放歌曲曲谱的文件夹名称改变
-                if old_song_name in self.song_tab:
-                    old_path = os.path.join('./pic', old_song_name)
-                    new_path = os.path.join('./pic', new_song_name)
-                    os.rename(old_path, new_path)             
-                
-                #提示修改成功
-                messagebox.showinfo("修改成功", "修改成功！")
+            # 将存放歌曲曲谱的文件夹名称改变
+            old_path = os.path.join('./pic', old_song_name)
+            new_path = os.path.join('./pic', new_song_name)
+            if os.path.exists(old_path):
+                os.rename(old_path, new_path)
 
+            # 将self.song_time中key的值改变
+            if old_song_name in self.song_time:
+                self.song_time[new_song_name] = self.song_time.pop(old_song_name)
+                time = self.song_time[new_song_name]
+                for i, t in enumerate(time):
+                    time[i] = t.replace(old_song_name, new_song_name)
+                self.song_time[new_song_name] = time
+                self.save_time()
+            
+             # 提示修改成功
+            messagebox.showinfo("修改成功", "修改成功！")
+            
     def delete_song(self):           #删除歌曲操作(已优化)
         # 获取选中的歌曲名
         selection_index = self.song_listbox.curselection()[0]
@@ -211,6 +257,7 @@ class GuitarTrainerApp:
         self.song_listbox.delete(selection_index)
         self.song_list.remove(old_song_name)
         self.song_tab.pop(old_song_name, None)
+        self.song_time.pop(old_song_name, None)
 
         # 保存更新后的列表和字典
         self.save_songs()
@@ -296,29 +343,66 @@ class GuitarTrainerApp:
         self.image_label.config(image=photo)
         self.image_label.image = photo  
 
-    def on_select(self, event):      #判断当前选中的歌曲名
+    def on_select(self, event):      #判断当前选中的歌曲名(已优化)
         # 获取选中的歌曲名称
         selected_index = self.song_listbox.curselection()
-        if self.song_listbox.curselection():
+        if selected_index:
             self.selected_song = self.song_listbox.get(selected_index)
             # 设置“添加曲谱”按钮为可点击状态
             self.add_tab_button.config(state=tk.NORMAL)
             # 设置“删除曲谱”按钮为可点击状态
             self.delete_tab_button.config(state=tk.NORMAL)
 
-        if self.selected_song in self.song_tab:
-            self.img_url = self.song_tab[self.selected_song][0]
-            total_pages = len(self.song_tab[self.selected_song])
-            self.page_text.set(f"1/{total_pages}")
-            self.load_image(filename=self.img_url)
-
-        else:
-            self.img_url = './pic/default.png'
-            self.load_image(filename=self.img_url)
+        self.img_url = self.song_tab.get(self.selected_song, ['./pic/default.png'])[0]
+        total_pages = len(self.song_tab.get(self.selected_song, []))
+        self.page_text.set(f"1/{total_pages}")
+        self.load_image(filename=self.img_url)
 
         if self.selected_song not in self.song_tab:
             self.delete_tab_button.config(state=tk.DISABLED)
             
+        #开始计时
+        if "调弦" not in self.selected_song:
+            self.start_timer()
+        else:
+            self.master.after_cancel(self.timer_id)
+            self.time_text_1.set("")
+            self.time_text_2.set("")
+            self.page_text.set("")
+        
+    def start_timer(self):            #开始计时
+        self.temp_time = 0
+        if self.timer_id:
+            self.master.after_cancel(self.timer_id)
+        self.update_time_text()
+
+    def update_time_text(self):    #更新文本框中的时间(已优化)
+        # 更新选中歌曲的时间
+        self.update_selected_song_time()
+
+        # 更新文本框中的时间
+        self.temp_time += 1
+        self.time_text_1.set(f"当前练习时间: {self.temp_time}s")
+        total_time = self.song_time[self.selected_song]
+        if total_time <= 60:
+            self.time_text_2.set(f"总共练习时间: {total_time}s")
+        elif total_time <= 3600:
+            self.time_text_2.set(f"总共练习时间: {total_time//60}m {total_time%60}s")
+        else:
+            hours = total_time // 3600
+            minutes = (total_time - hours * 3600) // 60
+            self.time_text_2.set(f"总共练习时间: {hours}h {minutes}m")
+
+        # 每隔1秒更新一次
+        self.timer_id = self.master.after(1000, self.update_time_text)
+
+    def update_selected_song_time(self):    #更新选中歌曲的时间
+        if self.selected_song not in self.song_time:
+            self.song_time[self.selected_song] = 0
+        else:
+            self.song_time[self.selected_song] += 1
+        self.save_time()     
+
     def save_tabs(self):             #保存乐谱信息
         with open('./config/song_dict.pkl', 'wb') as f:
             pickle.dump(self.song_tab, f)
@@ -419,3 +503,16 @@ class GuitarTrainerApp:
         pos = self.song_listbox.curselection()[0] + 1
         #弹窗，告知用户当前位置
         messagebox.showinfo("当前位置", f"当前位置为{pos}")
+
+    def save_time(self):             #保存记录时间
+        with open('./config/time.pkl', 'wb') as f:
+            pickle.dump(self.song_time, f)
+
+    def load_time(self):             #读取记录时间
+        if os.path.exists('./config/time.pkl'):
+            with open('./config/time.pkl', 'rb') as f:
+                self.song_time = pickle.load(f)
+    
+root = tk.Tk()
+app = GuitarTrainerApp(root)
+root.mainloop()
