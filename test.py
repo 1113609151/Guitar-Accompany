@@ -61,12 +61,12 @@ class GuitarTrainerApp:
         #添加一个文本框，显示当前训练时间
         self.time_text_1 = tk.StringVar()
         self.time_label_1 = tk.Label(self.master, textvariable=self.time_text_1)
-        self.time_label_1.place(relx=1.0, rely=1.0, anchor="se", x=-600, y=-10)
+        self.time_label_1.place(relx=1.0, rely=1.0, anchor="se", x=-590, y=-10)
 
         #添加一个文本框，显示总共训练时间
         self.time_text_2 = tk.StringVar()
         self.time_label_2 = tk.Label(self.master, textvariable=self.time_text_2)
-        self.time_label_2.place(relx=1.0, rely=1.0, anchor="se", x=-480, y=-10)
+        self.time_label_2.place(relx=1.0, rely=1.0, anchor="se", x=-450, y=-10)
 
         # 创建一个包含两个Frame的Frame
         self.frame = tk.Frame(self.master)
@@ -394,7 +394,10 @@ class GuitarTrainerApp:
 
         # 更新文本框中的时间
         self.temp_time += 1
-        self.time_text_1.set(f"当前练习时间: {self.temp_time}s")
+        if self.temp_time <= 60:
+            self.time_text_1.set(f"当前练习时间: {self.temp_time}s")
+        else:
+            self.time_text_1.set(f"当前练习时间: {self.temp_time//60}m {self.temp_time%60}s")
         total_time = self.song_time[self.selected_song]
         if total_time <= 60:
             self.time_text_2.set(f"总共练习时间: {total_time}s")
