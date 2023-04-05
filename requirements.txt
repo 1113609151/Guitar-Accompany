@@ -1,0 +1,8 @@
+altgraph==0.17.3
+certifi @ file:///C:/ci_311/certifi_1676421629969/work/certifi
+pefile==2023.2.7
+Pillow==9.4.0
+pyinstaller==5.9.0
+pyinstaller-hooks-contrib==2023.1
+pywin32-ctypes==0.2.0
+wincertstore==0.2
