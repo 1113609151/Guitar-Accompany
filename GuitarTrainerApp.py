@@ -2,7 +2,7 @@
 import datetime
 import time
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import Scrollbar, messagebox
 from tkinter import filedialog
 from PIL import Image, ImageTk
 from tkinter import simpledialog
@@ -35,7 +35,7 @@ class GuitarTrainerApp:
 
         #添加按钮，用于添加歌曲
         self.add_tab_button = tk.Button(self.master, text="添加曲谱", command=self.add_tab)
-        self.add_tab_button.pack(side="bottom", padx=10, pady=10, expand=True)
+        self.add_tab_button.pack(side="bottom", padx=0, pady=10)
         self.add_tab_button.config(state='disabled')
 
         #添加一个按钮，放在add_tab_button的右侧，用于删除图片
@@ -107,8 +107,23 @@ class GuitarTrainerApp:
         self.tab_label = tk.Label(self.tab_frame, text="吉他谱", font=("宋体", 20))
         self.tab_label.pack(side="top", padx=10, pady=10)
 
-        self.image_label = tk.Label(self.tab_frame)
-        self.image_label.pack(side="left", fill="both", expand=True)
+        #创建Canvas用于显示图片
+        self.canvas = tk.Canvas(self.tab_frame)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        
+        # 创建垂直滚动条
+        yscrollbar = Scrollbar(self.canvas, orient='vertical', command=self.canvas.yview)
+        yscrollbar.pack(side='right', fill='y')
+
+        # 创建水平滚动条
+        xscrollbar = Scrollbar(self.canvas, orient='horizontal', command=self.canvas.xview)
+        xscrollbar.pack(side='bottom', fill='x')
+
+        # 将滚动条与canvas绑定
+        self.canvas.configure(xscrollcommand=xscrollbar.set, yscrollcommand=yscrollbar.set)
+        yscrollbar.config(command=self.canvas.yview)
+        xscrollbar.config(command=self.canvas.xview)
+        self.canvas.config(scrollregion=self.canvas.bbox('all'))
 
         #添加一个按钮，用于放大图片
         self.zoom_button = tk.Button(self.tab_frame, text="放大图片", command=self.zoom)
@@ -121,14 +136,25 @@ class GuitarTrainerApp:
         self.shrink_button.config(state='disabled')
 
         # 改变窗口尺寸时，同时改变照片大小
-        self.image_label.bind("<Configure>", self.resize_image)
+        self.canvas.bind("<Configure>", self.resize_image)
         # 右键listbox的内容，触发事件
         self.song_listbox.bind("<Button-3>", self.show_menu)
         # 左键listbox内空白处，取消选中
         self.song_listbox.bind("<Button-1>", self.clear_selection)
         #监听是否选中listbox内容
         self.song_listbox.bind("<<ListboxSelect>>", self.on_select)
+        #滑动条滚动事件
+        self.canvas.bind("<MouseWheel>", self.on_mousewheel)
     
+    def on_mousewheel(self, event):
+        # 获取滚轮方向，Linux和Windows有些许不同
+        if event.num == 5 or event.delta < 0:
+            # 滚轮向下滚动
+            self.canvas.yview_scroll(1, "units")
+        elif event.num == 4 or event.delta > 0:
+            # 滚轮向上滚动
+            self.canvas.yview_scroll(-1, "units")
+
     def exit_fullscreen(self):       #退出全屏
         self.master.attributes('-fullscreen', False)
 
@@ -136,8 +162,8 @@ class GuitarTrainerApp:
         img_url = self.img_url
         
         # 获取Label的大小
-        label_width = self.image_label.winfo_width()
-        label_height = self.image_label.winfo_height()
+        label_width = self.canvas.winfo_width()
+        label_height = self.canvas.winfo_height()
 
         # 加载图片并计算缩放比例
         img = Image.open(img_url)
@@ -151,8 +177,12 @@ class GuitarTrainerApp:
 
         # 更新图片
         self.image = ImageTk.PhotoImage(img)
-        self.image_label.config(image=self.image)        
-
+        #self.canvas显示图片
+        self.canvas.delete("all")
+        self.canvas.create_image(label_width//2, label_height//2, image=self.image)
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+            
     def popup_menu(self, event):     #弹出菜单
         self.menu.post(event.x_root, event.y_root)
 
@@ -346,8 +376,8 @@ class GuitarTrainerApp:
 
     def load_image(self, filename):  #更改显示的图片
         # 获取Label的大小
-        label_width = self.image_label.winfo_width()
-        label_height = self.image_label.winfo_height()
+        label_width = self.canvas.winfo_width()
+        label_height = self.canvas.winfo_height()
     
         img = Image.open(filename)
             
@@ -362,8 +392,9 @@ class GuitarTrainerApp:
         img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
         photo = ImageTk.PhotoImage(img)
-        self.image_label.config(image=photo)
-        self.image_label.image = photo  
+        self.canvas.delete("all")
+        self.canvas.create_image(label_width // 2, label_height // 2, image=photo)
+        self.canvas.image = photo
 
     def on_select(self, event):      #判断当前选中的歌曲名(已优化)
         # 获取选中的歌曲名称
@@ -549,24 +580,29 @@ class GuitarTrainerApp:
             with open('./config/time.pkl', 'rb') as f:
                 self.song_time = pickle.load(f)
     
-    def zoom(self):                  #放大图片
+    def zoom(self):
         img_url = self.img_url
+        # 获取Label的大小
+        label_width = self.canvas.winfo_width()
+        label_height = self.canvas.winfo_height()
         # 获取当前图片对象
         current_image = Image.open(img_url)
         # 缩放图片
         scaled_image = current_image.resize((int(current_image.width*1.2), int(current_image.height*1.2)))
-        # 将缩放后的图片转换为Tkinter支持的对象
-        scaled_photo = ImageTk.PhotoImage(scaled_image)
+        # 将缩放后的图片转换为Tkinter支持的对象，并保存引用
+        self.scaled_photo = ImageTk.PhotoImage(scaled_image)
         # 更新Label中的图片
-        self.image_label.configure(image=scaled_photo)
-        self.image_label.image = scaled_photo  # 记得保留对PhotoImage对象的引用，否则会被垃圾回收
+        self.canvas.delete("all")
+        self.canvas.create_image(label_width // 2, label_height // 2, image=self.scaled_photo, anchor="center")
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self.canvas.image = scaled_image
 
     def shrink(self):                #缩小图片   
         img_url = self.img_url
         
         # 获取Label的大小
-        label_width = self.image_label.winfo_width()
-        label_height = self.image_label.winfo_height()
+        label_width = self.canvas.winfo_width()
+        label_height = self.canvas.winfo_height()
 
         # 加载图片并计算缩放比例
         img = Image.open(img_url)
@@ -580,5 +616,7 @@ class GuitarTrainerApp:
 
         # 更新图片
         self.image = ImageTk.PhotoImage(img)
-        self.image_label.config(image=self.image) 
-        self.image_label.image = self.image
+        self.canvas.delete("all")
+        self.canvas.create_image(label_width // 2, label_height // 2, image=self.image)
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        self.canvas.image = self.image
