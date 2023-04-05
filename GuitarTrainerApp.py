@@ -61,12 +61,12 @@ class GuitarTrainerApp:
         #添加一个文本框，显示当前训练时间
         self.time_text_1 = tk.StringVar()
         self.time_label_1 = tk.Label(self.master, textvariable=self.time_text_1)
-        self.time_label_1.place(relx=1.0, rely=1.0, anchor="se", x=-600, y=-10)
+        self.time_label_1.place(relx=1.0, rely=1.0, anchor="se", x=-590, y=-10)
 
         #添加一个文本框，显示总共训练时间
         self.time_text_2 = tk.StringVar()
         self.time_label_2 = tk.Label(self.master, textvariable=self.time_text_2)
-        self.time_label_2.place(relx=1.0, rely=1.0, anchor="se", x=-480, y=-10)
+        self.time_label_2.place(relx=1.0, rely=1.0, anchor="se", x=-450, y=-10)
 
         # 创建一个包含两个Frame的Frame
         self.frame = tk.Frame(self.master)
@@ -109,6 +109,16 @@ class GuitarTrainerApp:
 
         self.image_label = tk.Label(self.tab_frame)
         self.image_label.pack(side="left", fill="both", expand=True)
+
+        #添加一个按钮，用于放大图片
+        self.zoom_button = tk.Button(self.tab_frame, text="放大图片", command=self.zoom)
+        self.zoom_button.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-20)
+        self.zoom_button.config(state='disabled')
+
+        #添加一个按钮，用于缩小图片
+        self.shrink_button = tk.Button(self.tab_frame, text="恢复大小", command=self.shrink)
+        self.shrink_button.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-60)
+        self.shrink_button.config(state='disabled')
 
         # 改变窗口尺寸时，同时改变照片大小
         self.image_label.bind("<Configure>", self.resize_image)
@@ -283,6 +293,16 @@ class GuitarTrainerApp:
         self.selected_song = ""
         self.add_tab_button.config(state='disabled')
         self.delete_tab_button.config(state='disabled')
+        self.time_text_1.set('')
+        self.time_text_2.set('')
+        self.page_text.set('')
+        self.img_url = './pic/default.png'
+        self.load_image(self.img_url)
+        self.save_songs()
+        self.save_tabs()
+        self.save_time()
+        if self.timer_id:
+            self.master.after_cancel(self.timer_id)
 
     def add_tab(self):               #增加吉他谱
         # 获取当前时间，作为文件名的一部分
@@ -296,8 +316,8 @@ class GuitarTrainerApp:
             messagebox.showerror("错误", "请先选择曲目")
             return
         
-        tab_path = filedialog.askopenfilename(title="选择照片", filetypes=[("Image files", "*.jpg;*.jpeg;*.png;*.gif")])
-        if not tab_path:
+        tab_paths = filedialog.askopenfilenames(title="选择照片", filetypes=[("Image files", "*.jpg;*.jpeg;*.png;*.gif")])
+        if not tab_paths:
             return
 
         # 创建一个文件夹，用于存放对应的吉他谱
@@ -305,13 +325,15 @@ class GuitarTrainerApp:
         if not os.path.exists(target_dir):
             os.mkdir(target_dir)
 
-        target_file = os.path.join(target_dir, f"{current_time}.jpg")
-        shutil.copy2(tab_path, target_file)
+        # 逐个复制吉他谱文件，并更新歌曲对应的吉他谱列表
+        for tab_path in tab_paths:
+            target_file = os.path.join(target_dir, f"{current_time}.jpg")
+            shutil.copy2(tab_path, target_file)
+            if selected_song not in self.song_tab:
+                self.song_tab[selected_song] = []
+            self.song_tab[selected_song].append(target_file)
+            current_time = str(int(current_time) + 1)  # 让文件名不重复
 
-        # 更新歌曲对应的吉他谱列表
-        if selected_song not in self.song_tab:
-            self.song_tab[selected_song] = []
-        self.song_tab[selected_song].append(target_file)
         self.save_tabs()
         
         # 显示保存成功消息和缩略图
@@ -357,6 +379,17 @@ class GuitarTrainerApp:
         total_pages = len(self.song_tab.get(self.selected_song, []))
         self.page_text.set(f"1/{total_pages}")
         self.load_image(filename=self.img_url)
+        
+        # 设置“放大”按钮为可点击状态
+        if self.img_url != './pic/default.png':
+            self.zoom_button.config(state=tk.NORMAL)
+            self.shrink_button.config(state=tk.NORMAL)
+        else:
+            self.zoom_button.config(state=tk.DISABLED)
+            self.shrink_button.config(state=tk.DISABLED)
+
+        if self.selected_song not in self.song_tab:
+            self.delete_tab_button.config(state=tk.DISABLED)
 
         if self.selected_song not in self.song_tab:
             self.delete_tab_button.config(state=tk.DISABLED)
@@ -365,7 +398,7 @@ class GuitarTrainerApp:
         if "调弦" not in self.selected_song:
             self.start_timer()
         else:
-            self.master.after_cancel(self.timer_id)
+            self.master.after_cancel(self.timer_id) if self.timer_id else None
             self.time_text_1.set("")
             self.time_text_2.set("")
             self.page_text.set("")
@@ -382,7 +415,10 @@ class GuitarTrainerApp:
 
         # 更新文本框中的时间
         self.temp_time += 1
-        self.time_text_1.set(f"当前练习时间: {self.temp_time}s")
+        if self.temp_time <= 60:
+            self.time_text_1.set(f"当前练习时间: {self.temp_time}s")
+        else:
+            self.time_text_1.set(f"当前练习时间: {self.temp_time//60}m {self.temp_time%60}s")
         total_time = self.song_time[self.selected_song]
         if total_time <= 60:
             self.time_text_2.set(f"总共练习时间: {total_time}s")
@@ -513,6 +549,36 @@ class GuitarTrainerApp:
             with open('./config/time.pkl', 'rb') as f:
                 self.song_time = pickle.load(f)
     
-root = tk.Tk()
-app = GuitarTrainerApp(root)
-root.mainloop()
+    def zoom(self):                  #放大图片
+        img_url = self.img_url
+        # 获取当前图片对象
+        current_image = Image.open(img_url)
+        # 缩放图片
+        scaled_image = current_image.resize((int(current_image.width*1.2), int(current_image.height*1.2)))
+        # 将缩放后的图片转换为Tkinter支持的对象
+        scaled_photo = ImageTk.PhotoImage(scaled_image)
+        # 更新Label中的图片
+        self.image_label.configure(image=scaled_photo)
+        self.image_label.image = scaled_photo  # 记得保留对PhotoImage对象的引用，否则会被垃圾回收
+
+    def shrink(self):                #缩小图片   
+        img_url = self.img_url
+        
+        # 获取Label的大小
+        label_width = self.image_label.winfo_width()
+        label_height = self.image_label.winfo_height()
+
+        # 加载图片并计算缩放比例
+        img = Image.open(img_url)
+        img_width, img_height = img.size
+        ratio = min(label_width / img_width, label_height / img_height)
+
+        # 缩放图片
+        new_width = int(img_width * ratio)
+        new_height = int(img_height * ratio)
+        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+        # 更新图片
+        self.image = ImageTk.PhotoImage(img)
+        self.image_label.config(image=self.image) 
+        self.image_label.image = self.image
