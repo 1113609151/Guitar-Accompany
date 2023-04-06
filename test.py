@@ -394,7 +394,9 @@ class GuitarTrainerApp:
         photo = ImageTk.PhotoImage(img)
         self.canvas.delete("all")
         self.canvas.create_image(label_width // 2, label_height // 2, image=photo)
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         self.canvas.image = photo
+
 
     def on_select(self, event):      #判断当前选中的歌曲名(已优化)
         # 获取选中的歌曲名称

@@ -27,7 +27,7 @@ class GuitarTrainerApp:
         self.timer_id = 0                    #计时器id
 
         # 添加全屏显示和退出全屏的功能
-        # self.master.attributes('-fullscreen', True)
+        self.master.attributes('-fullscreen', True)
         
         # 添加一个按钮，用于退出全屏
         button_exit_fullscreen = tk.Button(self.master, text="退出全屏", command=self.exit_fullscreen)
